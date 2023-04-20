@@ -317,10 +317,7 @@ contract BabyPepe is ERC20, Ownable {
         uint256 contractTokenBalance = balanceOf(address(this));
         require(contractTokenBalance > 0, "balance zero");
         swapping = true;
-        if (AmountLiquidityFee > 0) swapAndLiquify(AmountLiquidityFee);
-        if (AmountTokenRewardsFee > 0)
-            swapAndSendDividends(AmountTokenRewardsFee);
-        if (AmountMarketingFee > 0) swapAndSendToFee(AmountMarketingFee);
+        swapAndDistribute();
         swapping = false;
     }
 
@@ -368,10 +365,7 @@ contract BabyPepe is ERC20, Ownable {
             to != owner()
         ) {
             swapping = true;
-            if (AmountMarketingFee > 0) swapAndSendToFee(AmountMarketingFee);
-            if (AmountLiquidityFee > 0) swapAndLiquify(AmountLiquidityFee);
-            if (AmountTokenRewardsFee > 0)
-                swapAndSendDividends(AmountTokenRewardsFee);
+            swapAndDistribute();
             swapping = false;
         }
 
@@ -427,34 +421,46 @@ contract BabyPepe is ERC20, Ownable {
         }
     }
 
-    function swapAndSendToFee(uint256 tokens) private {
-        uint256 initialCAKEBalance = address(this).balance;
-        swapTokensForEth(tokens);
-        uint256 newBalance = (address(this).balance) - initialCAKEBalance;
-        (bool succ, ) = payable(_marketingWalletAddress).call{
-            value: newBalance
-        }("");
-        require(succ);
-        AmountMarketingFee = AmountMarketingFee - tokens;
+    function swapAndDistribute() private {
+        uint marketing_ = AmountMarketingFee;
+        uint reward_ = AmountTokenRewardsFee;
+        uint liquidity_ = AmountLiquidityFee / 2;
+        uint liqTokensHalf = AmountLiquidityFee - liquidity_;
+        uint tokensToSwap = marketing_ + reward_ + liquidity_;
+        // Reset all counters;
+        AmountMarketingFee = 0;
+        AmountTokenRewardsFee = 0;
+        AmountLiquidityFee = 0;
+
+        swapTokensForEth(tokensToSwap);
+        uint currentETH = address(this).balance();
+        reward_ = (reward_ * currentETH) / tokensToSwap;
+        liquidity_ = (liquidity_ * currentETH) / tokensToSwap;
+        marketing_ = currentETH - reward_ - liquidity_; // Leaves no ETH untouched
+
+        if (marketing_ > 0) {
+            (bool succ, ) = payable(_marketingWalletAddress).call{
+                value: _marketing
+            }("");
+            require(succ); //dev: COULD NOT TRANSFER TO MARKETING WALLET
+        }
+        if (liquidity_ > 0) {
+            addLiquidity(liqTokensHalf, liquidity_);
+        }
+        if (reward_ > 0) {
+            swapForRewardsAndSendDividends(reward_);
+        }
     }
 
-    function swapAndLiquify(uint256 tokens) private {
-        // split the contract balance into halves
-        uint256 half = tokens / 2;
-        uint256 otherHalf = tokens - half;
+    function swapForRewardsAndSendDividends(uint ethAmount) private {
+        address[] memory path = address[](2);
+        path[0] = uniswapV2Router.WETH();
+        path[1] = rewardToken;
 
-        uint256 initialBalance = address(this).balance;
-
-        // swap tokens for ETH
-        swapTokensForEth(half); // <- this breaks the ETH -> HATE swap when swap+liquify is triggered
-
-        // how much ETH did we just swap into?
-        uint256 newBalance = address(this).balance - initialBalance;
-
-        // add liquidity to uniswap
-        addLiquidity(otherHalf, newBalance);
-        AmountLiquidityFee = AmountLiquidityFee - tokens;
-        emit SwapAndLiquify(half, newBalance, otherHalf);
+        uint[] memory amounts = uniswapV2Router.swapExactETHForTokens{
+            value: ethAmount
+        }(0, path, address(dividendTracker), block.timestamp);
+        if (amounts[1] > 0) dividendTracker.distributePepeDividends(amounts[1]);
     }
 
     function swapTokensForEth(uint256 tokenAmount) private {
@@ -487,20 +493,6 @@ contract BabyPepe is ERC20, Ownable {
             liquidityHolder,
             block.timestamp
         );
-    }
-
-    //@audit-issue THIS FUCKING THINGS NEEDS TO SWAP ETH FOR PEPE
-    function swapAndSendDividends(uint256 tokens) private {
-        swapTokensForEth(tokens);
-        AmountTokenRewardsFee = AmountTokenRewardsFee - tokens;
-        uint256 dividends = address(this).balance;
-        (bool success, ) = payable(address(dividendTracker)).call{
-            value: dividends
-        }("");
-        if (success) {
-            dividendTracker.distributePepeDividends(dividends);
-            emit SendDividends(tokens, dividends);
-        }
     }
 
     function setLiquidityHolder(address _liquidityHolder) external onlyOwner {
