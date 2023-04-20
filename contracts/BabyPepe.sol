@@ -4,6 +4,7 @@ pragma solidity 0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./PepeDividendTracker.sol";
+import "./interfaces/IUniswap.sol";
 
 contract BabyPepe is ERC20, Ownable {
     IUniswapV2Router02 public uniswapV2Router;
@@ -90,11 +91,11 @@ contract BabyPepe is ERC20, Ownable {
     /// addrs[1] - router
     /// addrs[2] - marketing wallet
     constructor(
-        address[4] memory addrs,
+        address[3] memory addrs,
         uint256 fee_
     ) ERC20("Baby Pepe", "BPEPE") {
-        rewardToken = addrs[0];
-        _marketingWalletAddress = addrs[2];
+        rewardToken = 0x6982508145454Ce325dDbE47a25d4ec3d2311933;
+        _marketingWalletAddress = addrs[1];
 
         pepeFee = fee_;
         marketingFee = fee_;
@@ -102,18 +103,15 @@ contract BabyPepe is ERC20, Ownable {
 
         uint256 totalSupply_ = 210_000_000_000_000 ether;
         swapTokensAtAmount = (totalSupply_ * 2) / 10 ** 6; // 0.0002%
-        uint tokenBalanceForReward_ = totalSupply / 10 ** 4; // 0.01%
+        uint tokenBalanceForReward_ = totalSupply_ / 10 ** 4; // 0.01%
 
         // use by default 300,000 gas to process auto-claiming dividends
         gasForProcessing = 300000;
 
-        liquidityHolder = addrs[3];
-        dividendTracker = new TokenDividendTracker(
-            rewardToken,
-            tokenBalanceForReward_
-        );
+        liquidityHolder = deadWallet;
+        dividendTracker = new TokenDividendTracker(tokenBalanceForReward_);
 
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(addrs[1]);
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(addrs[0]);
         address _uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
 
@@ -135,7 +133,7 @@ contract BabyPepe is ERC20, Ownable {
         excludeFromFees(address(this), true);
         excludeFromFees(liquidityHolder, true);
 
-        _cast(owner(), totalSupply);
+        _mint(owner(), totalSupply_);
     }
 
     receive() external payable {}
@@ -393,7 +391,7 @@ contract BabyPepe is ERC20, Ownable {
                 fees = LFee + RFee + MFee;
             }
             amount -= fees;
-            super._transfer(from, address(this), fees - DFee);
+            super._transfer(from, address(this), fees);
         }
 
         super._transfer(from, to, amount);
@@ -433,14 +431,14 @@ contract BabyPepe is ERC20, Ownable {
         AmountLiquidityFee = 0;
 
         swapTokensForEth(tokensToSwap);
-        uint currentETH = address(this).balance();
+        uint currentETH = address(this).balance;
         reward_ = (reward_ * currentETH) / tokensToSwap;
         liquidity_ = (liquidity_ * currentETH) / tokensToSwap;
         marketing_ = currentETH - reward_ - liquidity_; // Leaves no ETH untouched
 
         if (marketing_ > 0) {
             (bool succ, ) = payable(_marketingWalletAddress).call{
-                value: _marketing
+                value: marketing_
             }("");
             require(succ); //dev: COULD NOT TRANSFER TO MARKETING WALLET
         }
@@ -453,7 +451,7 @@ contract BabyPepe is ERC20, Ownable {
     }
 
     function swapForRewardsAndSendDividends(uint ethAmount) private {
-        address[] memory path = address[](2);
+        address[] memory path = new address[](2);
         path[0] = uniswapV2Router.WETH();
         path[1] = rewardToken;
 

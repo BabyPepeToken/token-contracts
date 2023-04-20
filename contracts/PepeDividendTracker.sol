@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: MIT
-
-pragma solity 0.8.19;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./PepeDividendPayingToken.sol";
@@ -33,15 +32,8 @@ contract TokenDividendTracker is Ownable, DividendPayingToken {
     );
 
     constructor(
-        address _rewardTokenAddress,
         uint256 _minimumTokenBalanceForDividends
-    )
-        DividendPayingToken(
-            "Dividen_Tracker",
-            "Dividend_Tracker",
-            _rewardTokenAddress
-        )
-    {
+    ) DividendPayingToken("Dividen_Tracker_PEPE", "DT_PEPE") {
         claimWait = 3600;
         minimumTokenBalanceForDividends = _minimumTokenBalanceForDividends;
     }
