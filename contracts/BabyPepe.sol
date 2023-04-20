@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.18;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -41,6 +41,7 @@ contract BabyPepe is ERC20, Ownable {
     mapping(address => bool) public automatedMarketMakerPairs;
     // Only PAIR and owner are whitelisted from cooldown. If there are any more wallets, we definitely need to add them before hand. e.g PINKSALE
     mapping(address => bool) public cooldownWhitelist;
+    mapping(address => uint) public cooldowns;
 
     event UpdateDividendTracker(
         address indexed newAddress,
@@ -91,7 +92,7 @@ contract BabyPepe is ERC20, Ownable {
     /// addrs[1] - router
     /// addrs[2] - marketing wallet
     constructor(
-        address[3] memory addrs,
+        address[2] memory addrs,
         uint256 fee_
     ) ERC20("Baby Pepe", "BPEPE") {
         rewardToken = 0x6982508145454Ce325dDbE47a25d4ec3d2311933;
@@ -132,6 +133,9 @@ contract BabyPepe is ERC20, Ownable {
         excludeFromFees(_marketingWalletAddress, true);
         excludeFromFees(address(this), true);
         excludeFromFees(liquidityHolder, true);
+        cooldownWhitelist[owner()] = true;
+        cooldownWhitelist[_uniswapV2Pair] = true;
+        cooldownWhitelist[address(_uniswapV2Router)] = true;
 
         _mint(owner(), totalSupply_);
     }
@@ -346,6 +350,11 @@ contract BabyPepe is ERC20, Ownable {
         require(from != address(0) || to != address(0), "ERC20: 0 address");
         require(!_isEnemy[from] && !_isEnemy[to], "Enemy address");
 
+        if (!cooldownWhitelist[from]) {
+            require(cooldowns[from] < block.number, "cooldown");
+            cooldowns[from] = block.number + 3;
+        }
+
         if (amount == 0) {
             super._transfer(from, to, 0);
             return;
@@ -390,8 +399,10 @@ contract BabyPepe is ERC20, Ownable {
                 AmountMarketingFee += MFee;
                 fees = LFee + RFee + MFee;
             }
-            amount -= fees;
-            super._transfer(from, address(this), fees);
+            if (fees > 0) {
+                amount -= fees;
+                super._transfer(from, address(this), fees);
+            }
         }
 
         super._transfer(from, to, amount);
@@ -417,6 +428,10 @@ contract BabyPepe is ERC20, Ownable {
                 );
             } catch {}
         }
+    }
+
+    function burn(uint amount) external {
+        _burn(msg.sender, amount);
     }
 
     function swapAndDistribute() private {
