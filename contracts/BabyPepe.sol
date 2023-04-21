@@ -161,6 +161,14 @@ contract BabyPepe is ERC20, Ownable {
         uniswapV2Pair = _uniswapV2Pair;
     }
 
+    function excludeFromFeeAndReward(
+        address account,
+        bool excluded
+    ) public onlyOwner {
+        excludeFromFees(account, excluded);
+        dividendTracker.excludeFromDividends(account);
+    }
+
     function excludeFromFees(address account, bool excluded) public onlyOwner {
         if (_isExcludedFromFees[account] != excluded) {
             _isExcludedFromFees[account] = excluded;
