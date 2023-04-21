@@ -29,7 +29,7 @@ const config: HardhatUserConfig = {
     },
   },
   gasReporter: {
-    enabled: true, // set to true of false when necessary
+    enabled: process.env.REPORT_GAS? true : false, // set to true of false when necessary
   },
   etherscan:{
     apiKey: process.env.ETHERSCAN
