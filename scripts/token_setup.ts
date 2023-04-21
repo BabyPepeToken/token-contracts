@@ -3,7 +3,7 @@ import { ethers, network } from 'hardhat'
 const router = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
 const deadWallet = "0x000000000000000000000000000000000000dEaD"
 const marketing = "0x1146e30A4d44eac8CE23730402c594Fc246e226A"
-const BABY_PEPE_CONTRACT = "0x44863F234b137A395e5c98359d16057A9A1fAc55"
+const BABY_PEPE_CONTRACT = "0x5dD0F5dA07E9C63F2d216179311EF8cB68ABb629"
 
 export async function main(){
     console.log("---------HERE ----------")
