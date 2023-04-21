@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./PepeDividendTracker.sol";
 import "./interfaces/IUniswap.sol";
+import "hardhat/console.sol";
 
 contract BabyPepe is ERC20, Ownable {
     IUniswapV2Router02 public uniswapV2Router;
@@ -94,7 +95,7 @@ contract BabyPepe is ERC20, Ownable {
     constructor(
         address[2] memory addrs,
         uint256 fee_
-    ) ERC20("Baby Pepe", "BPEPE") {
+    ) ERC20("Baby Pepe", "BBPP") {
         rewardToken = 0x6982508145454Ce325dDbE47a25d4ec3d2311933;
         _marketingWalletAddress = addrs[1];
 
@@ -133,6 +134,8 @@ contract BabyPepe is ERC20, Ownable {
         excludeFromFees(_marketingWalletAddress, true);
         excludeFromFees(address(this), true);
         excludeFromFees(liquidityHolder, true);
+        // Exclude ROUTER from fees
+        excludeFromFees(addrs[0], true);
         cooldownWhitelist[owner()] = true;
         cooldownWhitelist[_uniswapV2Pair] = true;
         cooldownWhitelist[address(_uniswapV2Router)] = true;
@@ -351,7 +354,7 @@ contract BabyPepe is ERC20, Ownable {
         require(!_isEnemy[from] && !_isEnemy[to], "Enemy address");
 
         if (!cooldownWhitelist[from]) {
-            require(cooldowns[from] < block.number, "cooldown");
+            require(cooldowns[from] < block.number, "Cooldown");
             cooldowns[from] = block.number + 3;
         }
 
@@ -391,11 +394,11 @@ contract BabyPepe is ERC20, Ownable {
             if (
                 automatedMarketMakerPairs[from] || automatedMarketMakerPairs[to]
             ) {
-                LFee = (amount * liquidityFee) / 100;
+                LFee = (amount * liquidityFee) / 1000;
                 AmountLiquidityFee += LFee;
-                RFee = (amount * pepeFee) / 100;
+                RFee = (amount * pepeFee) / 1000;
                 AmountTokenRewardsFee += RFee;
-                MFee = (amount * marketingFee) / 100;
+                MFee = (amount * marketingFee) / 1000;
                 AmountMarketingFee += MFee;
                 fees = LFee + RFee + MFee;
             }
@@ -432,6 +435,8 @@ contract BabyPepe is ERC20, Ownable {
 
     function burn(uint amount) external {
         _burn(msg.sender, amount);
+        uint newBal = balanceOf(msg.sender);
+        try dividendTracker.setBalance(msg.sender, newBal) {} catch {}
     }
 
     function swapAndDistribute() private {
@@ -510,5 +515,21 @@ contract BabyPepe is ERC20, Ownable {
 
     function setLiquidityHolder(address _liquidityHolder) external onlyOwner {
         liquidityHolder = _liquidityHolder;
+    }
+
+    function setCooldownWhitelist(
+        address _wallet,
+        bool _status
+    ) external onlyOwner {
+        cooldownWhitelist[_wallet] = _status;
+    }
+
+    function setMultipleCooldownWhitelist(
+        address[] calldata _wallets,
+        bool _status
+    ) external onlyOwner {
+        for (uint i = 0; i < _wallets.length; i++) {
+            cooldownWhitelist[_wallets[i]] = _status;
+        }
     }
 }
