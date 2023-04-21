@@ -16,11 +16,12 @@ export async function main(){
     const teamTokens = totalSupply.sub(liquidityTokens).sub(tokensForReserves)
 
     // CHANGE TO MAKE SURE VALUE IS 2K
-    const ethForLiquidity = ethers.utils.parseEther("1")
+    const ethForLiquidity = ethers.utils.parseEther("1.07")
     
     const uniRouter = await ethers.getContractAt("IUniswapV2Router02", router);
     const babyPair = await ethers.getContractAt("IUniswapV2Pair", await babyPepe.uniswapV2Pair());
 
+    // issue: for some reason this failed in live network... did everything manually
     await babyPepe.approve(router, liquidityTokens)
     await uniRouter.addLiquidityETH(babyPepe.address, liquidityTokens,  liquidityTokens, ethForLiquidity, deployer.address, Math.floor(Date.now()/1000)+1200, {value: ethForLiquidity})
 
