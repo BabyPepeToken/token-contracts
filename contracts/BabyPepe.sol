@@ -136,6 +136,7 @@ contract BabyPepe is ERC20, Ownable {
         excludeFromFees(liquidityHolder, true);
         // Exclude ROUTER from fees
         excludeFromFees(addrs[0], true);
+        cooldownWhitelist[address(this)] = true;
         cooldownWhitelist[owner()] = true;
         cooldownWhitelist[_uniswapV2Pair] = true;
         cooldownWhitelist[address(_uniswapV2Router)] = true;
